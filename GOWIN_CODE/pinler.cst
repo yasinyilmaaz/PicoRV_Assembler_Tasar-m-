@@ -1,0 +1,11 @@
+// Saat Sinyali
+IO_LOC "clk" 52;
+IO_PORT "clk" IO_TYPE=LVCMOS33 PULL_MODE=UP;
+
+// Reset Butonu (S1 - Pin 3)
+IO_LOC "resetn" 3;
+IO_PORT "resetn" IO_TYPE=LVCMOS18 PULL_MODE=UP;
+
+// 5. LED (Fiziksel Pin 14)
+IO_LOC "led_out" 13;
+IO_PORT "led_out" IO_TYPE=LVCMOS18 PULL_MODE=UP DRIVE=8;

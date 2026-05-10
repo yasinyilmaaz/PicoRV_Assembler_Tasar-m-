@@ -1,0 +1,12 @@
+.text
+00000513
+000000EF
+00000063
+.data
+.symbols
+_start 0 GLOBAL TEXT
+sonsuz_dongu 8 LOCAL TEXT
+.externs
+led_yak
+.relocs
+4 J led_yak
