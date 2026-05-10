@@ -2,7 +2,8 @@
 
 Bu proje, RISC-V (RV32I) mimarisine özel olarak geliştirilmiş bir **Assembler**, **Linker** ve bunların yönetimini kolaylaştıran modern bir **Python Arayüzü (GUI)** içermektedir. Ayrıca, projede **Gowin FPGA** üzerinde çalıştırılabilen **PicoRV32** işlemci donanım kodları da yer almaktadır.
 
-![Arayüz Ekran Görüntüsü](docs/images/screenshot1.png)
+### Arayüz Görseli
+![Arayüz Ekran Görüntüsü](docs/images/screenshot2.png)
 
 ## 📌 Özellikler
 
@@ -49,8 +50,6 @@ Arayüz üzerinden:
 2. T-Text ve T-Data bellek adreslerini ayarlayın.
 3. `LINKLE VE ANALİZ ET` butonuna basarak işlemleri tamamlayıp, sonuçları görüntüleyin.
 
-![Log ve Analiz Ekranı](docs/images/screenshot2.png)
-
 ### 2. Komut Satırı İle Manuel Kullanım
 
 Örnek assembly kodlarını (`.asm`) obje kodlarına (`.o`) çevirmek:
@@ -66,9 +65,12 @@ Oluşan obje dosyalarını Linker ile bağlayıp hafıza dosyasını (`output.me
 
 ---
 
-## 💻 Gowin FPGA Entegrasyonu
+## 💻 Gowin FPGA Entegrasyonu ve Kart Özellikleri
 
 Oluşturulan nihai `output.mem` veya `firmware.mem` dosyasını, `GOWIN_CODE` klasöründeki FPGA projenize dahil edebilirsiniz.
+
+### Kart Özellikleri (Pinmap)
+![Kart Özellikleri](docs/images/screenshot1.png)
 Gowin dizin yapısı:
 - `picorv32.v`: İşlemcinin çekirdek donanım tanımı.
 - `memory.v`: Hafıza bloğu.
