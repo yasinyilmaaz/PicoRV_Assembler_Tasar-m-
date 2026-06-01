@@ -6,7 +6,7 @@ import os
 class LinkerGUI:
     def __init__(self, root):
         self.root = root
-        self.root.title("Yusuf Polat | RISC-V Linker Integrated Management")
+        self.root.title("RISC-V Linker Integrated Management")
         self.root.geometry("1100x700")
         self.root.configure(bg="#1e1e2e") # Koyu tema
         
@@ -108,8 +108,20 @@ class LinkerGUI:
             messagebox.showwarning("Uyarı", "Lütfen .o dosyalarını ekleyin!")
             return
 
-        output_file = "output.mem"
-        cmd = ["./linker.exe", "-Ttext", f"0x{self.text_addr.get()}", "-Tdata", f"0x{self.data_addr.get()}", "-o", output_file]
+        # Yeni klasör yapısına göre yollar:
+        #   bu dosya  : sistem_proglamlama_proje_3/toolchain/gui/arayuz.py
+        #   linker    : sistem_proglamlama_proje_3/toolchain/bin/linker.exe
+        #   çıktı     : sistem_proglamlama_proje_3/build/output.mem
+        project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+        linker_exe   = os.path.join(project_root, "toolchain", "bin", "linker.exe")
+        build_dir    = os.path.join(project_root, "build")
+        os.makedirs(build_dir, exist_ok=True)
+        output_file  = os.path.join(build_dir, "output.mem")
+
+        cmd = [linker_exe,
+               "-Ttext", f"0x{self.text_addr.get()}",
+               "-Tdata", f"0x{self.data_addr.get()}",
+               "-o", output_file]
         cmd.extend(self.files)
 
         try:

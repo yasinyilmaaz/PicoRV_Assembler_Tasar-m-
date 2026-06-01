@@ -1,0 +1,16 @@
+# Derleme çıktıları
+build/*.o
+build/*.mem
+!build/.gitkeep
+
+# Toolchain binary'leri (kaynaktan derlenir)
+toolchain/bin/*.exe
+
+# Windows
+desktop.ini
+Thumbs.db
+
+# Editörler
+.vscode/
+.idea/
+*.swp

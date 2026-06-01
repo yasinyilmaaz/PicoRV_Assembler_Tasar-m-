@@ -1,8 +1,0 @@
-.text
-100002B7
-00A2A023
-.data
-.symbols
-led_yak 0 GLOBAL TEXT
-.externs
-.relocs

@@ -69,6 +69,12 @@ InstructionInfo opcode_table[] = {
     {"xori", 'I', 0x13, 0x4, 0x00},
     {"ori",  'I', 0x13, 0x6, 0x00},
     {"andi", 'I', 0x13, 0x7, 0x00},
+    // I-Type Shift (shamt 5-bit, funct7 imm[11:5]'e gomulur)
+    {"slli", 'I', 0x13, 0x1, 0x00},
+    {"srli", 'I', 0x13, 0x5, 0x00},
+    {"srai", 'I', 0x13, 0x5, 0x20},
+    // I-Type karsilastirma (opsiyonel)
+    {"slti", 'I', 0x13, 0x2, 0x00},
 
     // I-Type (Load)
     {"lb",   'I', 0x03, 0x0, 0x00},
@@ -154,9 +160,69 @@ void trim(char* s) {
     }
 }
 
+// RISC-V psABI (Application Binary Interface) standardi:
+//   "RISC-V ABIs Specification", Section 2 "Integer Register Convention".
+// Hem mimari isimler (x0..x31) hem de ABI takma adlari (zero, ra, sp, ...)
+// kabul edilir. Tanimsiz isimlerde sessizce x0'a fallback YAPILMAZ —
+// hata mesaji uretilir (assembler dogrulamasi, PÇ7).
+typedef struct { const char* name; int num; } AbiAlias;
+static const AbiAlias abi_aliases[] = {
+    {"zero", 0}, {"ra", 1},  {"sp", 2},  {"gp", 3},  {"tp", 4},
+    {"t0",   5}, {"t1", 6},  {"t2", 7},
+    {"s0",   8}, {"fp", 8},  {"s1", 9},
+    {"a0",  10}, {"a1",11},  {"a2",12},  {"a3",13},
+    {"a4",  14}, {"a5",15},  {"a6",16},  {"a7",17},
+    {"s2",  18}, {"s3",19},  {"s4",20},  {"s5",21},
+    {"s6",  22}, {"s7",23},  {"s8",24},  {"s9",25},
+    {"s10", 26}, {"s11",27},
+    {"t3",  28}, {"t4",29},  {"t5",30},  {"t6",31},
+    {NULL, -1}
+};
+
 int get_register_num(char* reg) {
-    if (reg == NULL || reg[0] != 'x') return 0;
-    return atoi(reg + 1);
+    if (reg == NULL || reg[0] == '\0') {
+        fprintf(stderr, "[ASM HATA] Register beklendi, NULL geldi.\n");
+        return 0;
+    }
+    // Bosluk/virgul temizle
+    char buf[16]; int j = 0;
+    for (int i = 0; reg[i] && j < 15; i++)
+        if (!isspace((unsigned char)reg[i]) && reg[i] != ',')
+            buf[j++] = (char)tolower((unsigned char)reg[i]);
+    buf[j] = '\0';
+
+    // Mimari isim:  x0..x31
+    if (buf[0] == 'x' && isdigit((unsigned char)buf[1])) {
+        int n = atoi(buf + 1);
+        if (n < 0 || n > 31) {
+            fprintf(stderr, "[ASM HATA] Gecersiz register araligi: %s (x0..x31)\n", reg);
+            return 0;
+        }
+        return n;
+    }
+    // ABI takma adi
+    for (int i = 0; abi_aliases[i].name != NULL; i++) {
+        if (strcmp(buf, abi_aliases[i].name) == 0) return abi_aliases[i].num;
+    }
+    fprintf(stderr, "[ASM HATA] Bilinmeyen register adi: '%s'. x0..x31 veya ABI ismi (a0, t0, sp, ...) kullanin.\n", reg);
+    return 0;
+}
+
+// Immediate ayristirma: ondalik, hex (0x..), oktal (0..), binary (0b..)
+// strtol(str, NULL, 0) hex ve oktal'i otomatik tanir; binary icin manuel.
+int32_t parse_imm(const char* s) {
+    if (!s || !*s) return 0;
+    while (isspace((unsigned char)*s)) s++;
+    int neg = 0;
+    if (*s == '-') { neg = 1; s++; }
+    else if (*s == '+') s++;
+    int32_t v;
+    if ((s[0] == '0') && (s[1] == 'b' || s[1] == 'B')) {
+        v = (int32_t)strtol(s + 2, NULL, 2);
+    } else {
+        v = (int32_t)strtol(s, NULL, 0);   // 0x.., 0.., decimal
+    }
+    return neg ? -v : v;
 }
 
 void add_extern_if_not_exists(char* name) {
@@ -186,8 +252,16 @@ uint32_t encode_R(InstructionInfo info, char* rd_s, char* rs1_s, char* rs2_s) {
 uint32_t encode_I(InstructionInfo info, char* rd_s, char* rs1_s, char* imm_s) {
     int rd = get_register_num(rd_s);
     int rs1 = get_register_num(rs1_s);
-    int imm = atoi(imm_s);
-    return ((imm & 0xFFF) << 20) | (rs1 << 15) | (info.funct3 << 12) | (rd << 7) | info.opcode;
+    int32_t imm = parse_imm(imm_s);
+    // RV32I I-type imm 12-bit signed:  [-2048, 2047]
+    if (imm < -2048 || imm > 2047) {
+        fprintf(stderr, "[ASM UYARI] I-type imm araligi disinda: %d (-2048..2047). 12-bit'e kirpildi.\n", imm);
+    }
+    // Shift I-type (slli/srli/srai) icin funct7 bit[31:25]'e yerlesir.
+    // Diger I-type'larda funct7 = 0 oldugu icin bu OR guvenli.
+    uint32_t enc = ((imm & 0xFFF) << 20) | (rs1 << 15) | (info.funct3 << 12) | (rd << 7) | info.opcode;
+    enc |= ((uint32_t)(info.funct7 & 0x7F) << 25);
+    return enc;
 }
 
 uint32_t encode_B(InstructionInfo info, char* rs1_s, char* rs2_s, int offset) {
@@ -201,9 +275,11 @@ uint32_t encode_S(InstructionInfo info, char* rs2_s, char* imm_rs1_s) {
     strcpy(temp, imm_rs1_s);
     char* imm_str = strtok(temp, "(");
     char* rs1_str = strtok(NULL, ")");
-    int imm = atoi(imm_str);
+    int32_t imm = parse_imm(imm_str);
     int rs1 = get_register_num(rs1_str);
     int rs2 = get_register_num(rs2_s);
+    if (imm < -2048 || imm > 2047)
+        fprintf(stderr, "[ASM UYARI] S-type imm araligi disinda: %d\n", imm);
     return (((imm >> 5) & 0x7F) << 25) | (rs2 << 20) | (rs1 << 15) | (info.funct3 << 12) | ((imm & 0x1F) << 7) | info.opcode;
 }
 
@@ -212,9 +288,11 @@ uint32_t encode_LW_SW(InstructionInfo info, char* rd_s, char* imm_rs1_s) {
     strcpy(temp, imm_rs1_s);
     char* imm_str = strtok(temp, "(");
     char* rs1_str = strtok(NULL, ")");
-    int imm = atoi(imm_str);
+    int32_t imm = parse_imm(imm_str);
     int rd = get_register_num(rd_s);
     int rs1 = get_register_num(rs1_str);
+    if (imm < -2048 || imm > 2047)
+        fprintf(stderr, "[ASM UYARI] Load/Store imm araligi disinda: %d\n", imm);
     return ((imm & 0xFFF) << 20) | (rs1 << 15) | (info.funct3 << 12) | (rd << 7) | info.opcode;
 }
 
@@ -231,6 +309,25 @@ uint32_t encode_U(InstructionInfo info, char* rd_s, char* imm_s) {
     return ((imm & 0xFFFFF) << 12) | (rd << 7) | info.opcode;
 }
 
+// Yorum karakterlerini ('#' GNU-as standardı, ';' ek olarak) siler.
+// RISC-V GNU as manual: "The character # appearing anywhere on a line
+// is treated as the start of a comment" (gas/config/tc-riscv.c).
+static void strip_comment(char* line) {
+    char* p;
+    if ((p = strchr(line, '#')) != NULL) *p = '\0';
+    if ((p = strchr(line, ';')) != NULL) *p = '\0';
+    // C++-style // yorumlar
+    if ((p = strstr(line, "//")) != NULL) *p = '\0';
+}
+
+// Verilen mnemonic, gerçek bir RV32I komutu mu? (sadece opcode_table'a bakar)
+static int is_real_opcode(const char* m) {
+    for (int i = 0; i < opcode_count; i++) {
+        if (strcmp(m, opcode_table[i].name) == 0) return 1;
+    }
+    return 0;
+}
+
 void pass1(FILE* in) {
     char line[MAX_LINE_LEN];
     uint32_t current_text_pc = 0;
@@ -238,9 +335,7 @@ void pass1(FILE* in) {
     char current_section[10] = "TEXT";
 
     while (fgets(line, sizeof(line), in)) {
-        char* comment = strchr(line, ';');
-        if (comment) *comment = '\0';
-
+        strip_comment(line);
         trim(line);
         if (strlen(line) == 0) continue;
 
@@ -251,8 +346,6 @@ void pass1(FILE* in) {
             trim(line);
 
             uint32_t addr = (strcmp(current_section, "TEXT") == 0) ? current_text_pc : current_data_pc;
-
-            // Hash Table'a Ekleme
             insert_symbol(line, addr, "LOCAL", current_section);
 
             char* rest = label_ptr + 1;
@@ -269,6 +362,7 @@ void pass1(FILE* in) {
         if (strcmp(mnemonic, ".text") == 0) { strcpy(current_section, "TEXT"); continue; }
         if (strcmp(mnemonic, ".data") == 0) { strcpy(current_section, "DATA"); continue; }
         if (strcmp(mnemonic, ".global") == 0) continue;
+        if (strcmp(mnemonic, ".globl")  == 0) continue;   // GAS standart yazımı
         if (strcmp(mnemonic, ".extern") == 0) continue;
 
         if (mnemonic[0] == '.') {
@@ -279,7 +373,10 @@ void pass1(FILE* in) {
             continue;
         }
 
-        if (strcmp(current_section, "TEXT") == 0) current_text_pc += 4;
+        // KRİTİK: PC'yi sadece GERÇEK opcode satırları için artır.
+        if (strcmp(current_section, "TEXT") == 0 && is_real_opcode(mnemonic)) {
+            current_text_pc += 4;
+        }
     }
 }
 
@@ -290,9 +387,7 @@ void pass2(FILE* in) {
     char current_section[10] = "TEXT";
 
     while (fgets(line, sizeof(line), in)) {
-        char* comment = strchr(line, ';');
-        if (comment) *comment = '\0';
-
+        strip_comment(line);
         trim(line);
         if (strlen(line) == 0) continue;
 
