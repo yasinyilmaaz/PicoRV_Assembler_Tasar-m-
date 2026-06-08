@@ -455,7 +455,7 @@ class PicoRVIde:
         af = tk.Frame(addr, bg=Theme.SURFACE); af.pack(fill=tk.X)
         tk.Label(af, text=".text base (-Ttext):", bg=Theme.SURFACE, fg=Theme.TEXT,
                  font=("Segoe UI", 9)).grid(row=0, column=0, sticky="w", padx=(0,8), pady=4)
-        self.ttext = tk.StringVar(value="0x300")    # Varsayilan: kod adres baslangici
+        self.ttext = tk.StringVar(value="0x0")
         tk.Entry(af, textvariable=self.ttext, bg=Theme.BG_ALT, fg=Theme.BLUE,
                  borderwidth=0, font=("Consolas", 10), width=14,
                  insertbackground=Theme.TEXT).grid(row=0, column=1, padx=(0,20), ipady=4)
@@ -1030,17 +1030,6 @@ class PicoRVIde:
         try:
             name = self.nb.tab(self.nb.select(), "text").strip()
             self.log(f"⇄ Sekme: {name}", color=Theme.TEAL)
-            # Linker sekmesine geçildiğinde Ttext mevcut değeri "0x0" veya boşsa
-            # 0x100'e ZORLA (donanım PROGADDR_RESET=0x100 ile uyumlu).
-            if "Linker" in name and hasattr(self, "ttext"):
-                cur = (self.ttext.get() or "").strip().lower()
-                if cur in ("", "0x0", "0", "0x00", "0x000", "0x0000",
-                           "0x40", "0x000040", "0x00000040",
-                           "0x100", "0x000100", "0x00000100",
-                           "0x200", "0x000200", "0x00000200"):
-                    self.ttext.set("0x300")
-                    self.log("   ↳ .text base default'a sıfırlandı: 0x300",
-                             color=Theme.YELLOW)
         except Exception:
             pass
 
@@ -1475,16 +1464,13 @@ class PicoRVIde:
             return
 
         # 4) Komutu kur ve çalıştır
-        ttext_val = self.ttext.get().strip() or "0x300"
-        tdata_val = self.tdata.get().strip() or "0x1000"
         cmd = base_cmd + [
-               "-Ttext", ttext_val,
-               "-Tdata", tdata_val,
+               "-Ttext", self.ttext.get().strip() or "0x0",
+               "-Tdata", self.tdata.get().strip() or "0x1000",
                "-o", str(out), *objs]
         self.set_status("Linkleniyor…", Theme.ORANGE)
-        self.log(f"🔗  {tool_label}  -Ttext {ttext_val}  -Tdata {tdata_val}",
-                 color=Theme.ORANGE)
-        self.log(f"   ➜ {out.name}", color=Theme.TEXT_DIM)
+        self.log(f"🔗  {tool_label} → {out.name}", color=Theme.ORANGE)
+        self.log(f"   Cikti yolu: {out}", color=Theme.TEXT_DIM)
         threading.Thread(target=self._run_link, args=(cmd, out), daemon=True).start()
 
     def _run_link(self, cmd, out):
@@ -1700,43 +1686,22 @@ class PicoRVIde:
     def do_inspect(self):
         p = self.insp_path.get().strip()
         if not p or not Path(p).exists(): return
-        # .mem dosyasini parse et: @ADRES tag'leri base adresi belirler
-        # Verilog $readmemh formatina uygun.
-        entries = []   # list of (byte_addr, word)
-        cur_byte = 0   # mevcut yazma byte adresi
+        words = []
         for line in Path(p).read_text(encoding="utf-8", errors="ignore").splitlines():
             line = line.split("//")[0].strip()
-            if not line:
-                continue
-            if line.startswith("@"):
-                # Adres tag'i: @00000100 -> bayt adres 0x100
-                try:
-                    cur_byte = int(line[1:], 16)
-                except ValueError:
-                    pass
-                continue
+            if not line or line.startswith("@"): continue
             for tok in line.split():
                 if re.fullmatch(r"[0-9a-fA-F]{8}", tok):
-                    entries.append((cur_byte, int(tok, 16)))
-                    cur_byte += 4
-
-        # Hex sutunu: gercek bayt adresi ile
+                    words.append(int(tok, 16))
+        # Hex
         self.hex_w.delete("1.0", tk.END)
-        for addr, w in entries:
-            self.hex_w.insert(tk.END, f"0x{addr:08X}    0x{w:08X}\n")
-
-        # Disassembly: gercek bayt adresi (PC) ile
+        for i, w in enumerate(words):
+            self.hex_w.insert(tk.END, f"0x{i*4:08X}    0x{w:08X}\n")
+        # Disasm
         self.dis_w.delete("1.0", tk.END)
-        for addr, w in entries:
-            self.dis_w.insert(tk.END, f"0x{addr:08X}    {disassemble(w)}\n")
-
-        # Ozet: bas adres + uzunluk
-        if entries:
-            base = entries[0][0]
-            self.log(f"🔍 {len(entries)} kelime ({len(entries)*4} bayt) "
-                     f"@ 0x{base:08X} adresinden başlıyor", color=Theme.PURPLE)
-        else:
-            self.log(f"🔍 Boş .mem", color=Theme.YELLOW)
+        for i, w in enumerate(words):
+            self.dis_w.insert(tk.END, f"0x{i*4:08X}    {disassemble(w)}\n")
+        self.log(f"🔍 {len(words)} kelime ({len(words)*4} bayt) incelendi", color=Theme.PURPLE)
 
 
 # ─────────────────────────────────────────────────────────────────────────────

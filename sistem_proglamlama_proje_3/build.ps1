@@ -13,15 +13,22 @@ param(
     [string]$Asm = "",
     [switch]$All,
     [switch]$Clean,
-    [string]$Ttext = "0x0",
+    [string]$Ttext = "0x400",
     [string]$Tdata = "0x1000"
 )
 
 $Root = $PSScriptRoot
 $Bin  = Join-Path $Root "toolchain\bin"
 $Src  = Join-Path $Root "toolchain\src"
+$Py   = Join-Path $Root "toolchain\py"
 $Build= Join-Path $Root "build"
 $AsmD = Join-Path $Root "asm"
+
+# Python tabanli toolchain'i kullan (WDAC engellerinden bagimsiz).
+# Eger Python araclari yoksa, eski .exe'ye geri donmek mumkun.
+$AsmPy  = Join-Path $Py "asm.py"
+$LinkPy = Join-Path $Py "link.py"
+$UsePython = (Test-Path $AsmPy) -and (Test-Path $LinkPy)
 
 function Build-Toolchain {
     Write-Host "[i] Toolchain derleniyor..." -ForegroundColor Cyan
@@ -42,9 +49,23 @@ function Build-One($asmFile) {
     $obj  = Join-Path $Build "$name.o"
     $mem  = Join-Path $Build "$name.mem"
     Write-Host "[>] $name.asm  ->  $name.o  ->  $name.mem" -ForegroundColor Yellow
-    & (Join-Path $Bin "assembler.exe") $asmFile $obj
-    if ($?) {
-        & (Join-Path $Bin "linker.exe") -Ttext $Ttext -Tdata $Tdata -o $mem $obj
+
+    $AsmExe  = Join-Path $Bin "assembler.exe"
+    $LinkExe = Join-Path $Bin "linker.exe"
+    if ((Test-Path $AsmExe) -and (Test-Path $LinkExe)) {
+        # C tabanli toolchain (oncelikli)
+        & $AsmExe $asmFile $obj
+        if ($?) {
+            & $LinkExe -Ttext $Ttext -Tdata $Tdata -o $mem $obj
+        }
+    } elseif ($UsePython) {
+        # Python tabanli toolchain (fallback, WDAC-immune)
+        python $AsmPy $asmFile $obj
+        if ($LASTEXITCODE -eq 0) {
+            python $LinkPy -Ttext $Ttext -Tdata $Tdata -o $mem $obj
+        }
+    } else {
+        Write-Host "[X] Ne C ne Python toolchain bulundu. .\build.ps1 -Tool calistir." -ForegroundColor Red
     }
 }
 
@@ -77,5 +98,5 @@ Kullanim:
   .\build.ps1 -All                 # asm\ + ..\tests\ butun .asm'leri
   .\build.ps1 -Clean               # build\ temizle
 Opsiyon:
-  -Ttext 0x0  -Tdata 0x1000        # ozel adresler
+  -Ttext 0x100  -Tdata 0x1000      # ozel adresler
 "@ -ForegroundColor Gray

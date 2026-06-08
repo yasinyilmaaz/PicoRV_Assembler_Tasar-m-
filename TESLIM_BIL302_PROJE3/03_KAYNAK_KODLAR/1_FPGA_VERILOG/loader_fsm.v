@@ -89,7 +89,7 @@ module loader_fsm #(
             byte_cnt     <= 0;
             byte_lane    <= 0;
             word_buf     <= 0;
-            cur_waddr    <= 13'd264;  // 0x200 byte / 4 = 128 word
+            cur_waddr    <= 0;
             timeout_cnt  <= 0;
             rx_seq       <= 0; rx_nseq <= 0; rx_crc <= 0;
             tx_next      <= 0;

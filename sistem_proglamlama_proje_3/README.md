@@ -1,143 +1,101 @@
-# RISC-V Toolchain & PicoRV32 FPGA Loader
+# PC Toolchain — Assembler + Linker
 
-PicoRV32 (RV32I) alt kümesi için **assembler + linker + FPGA loader** zinciri.
-Tang Nano 9K üzerinde UART/XMODEM-CRC ile firmware yükleme.
+Özgün RV32I derleme zinciri (C + Python).
 
----
-
-## 📁 Klasör Yapısı
+## 📁 Yapı
 
 ```
 sistem_proglamlama_proje_3/
+├── README.md            ← Bu dosya
+├── build.ps1            ← -Tool / -Asm / -All / -Clean
+├── .gitignore
 │
-├── README.md              ← Bu dosya
-├── build.ps1              ← Tek komutla derleme/asm script'i
-│
-├── toolchain/             ← PC tarafı yazılım zinciri
-│   ├── src/               ←   C kaynak kodları
-│   │   ├── assembler.c    ←     RV32I -> .o (custom object)
-│   │   └── linker.c       ←     .o + ESTAB -> .mem (firmware)
-│   ├── bin/               ←   Derlenmiş .exe'ler
+├── toolchain/
+│   ├── src/             ← C kaynak kodlar
+│   │   ├── assembler.c  ← İki-geçişli RV32I assembler
+│   │   └── linker.c     ← ESTAB + relocation linker
+│   ├── bin/             ← Derlenmiş .exe'ler
 │   │   ├── assembler.exe
 │   │   └── linker.exe
-│   └── gui/               ←   Linker görsel arayüzü
-│       └── arayuz.py
+│   └── py/              ← Python eşdeğerleri (WDAC fallback)
+│       ├── asm.py
+│       └── link.py
 │
-├── asm/                   ← Assembly kaynak dosyaları (.asm)
-│   ├── led.asm
-│   └── main.asm
-│
-├── build/                 ← Üretilen .o ve .mem dosyaları
-│
-├── hdl/                   ← FPGA tarafı Verilog (eski sürüm/yedek)
-│   ├── top.v              ←   NOT: aktif geliştirme ../gowin_program/ altında
-│   ├── memory.v
-│   ├── picorv32.v
-│   ├── pinler.cst
-│   └── firmware.mem
-│
-├── docs/                  ← Rapor görselleri, diyagramlar
-│   └── images/
-│
-└── tools/                 ← Yardımcı script'ler
-    └── google_groups_scraper.py
+└── build/               ← Üretilen .o ve .mem (gitignored)
 ```
 
-Aktif FPGA projesi: `../gowin_program/fpga_project/`
-Test assembly programları: `../tests/`
-Host loader (Python): `../host_app/host_loader.py`
+## 🚀 Kullanım
 
----
-
-## 🚀 Hızlı Başlangıç
-
-### 1) Toolchain'i derle (bir kere)
+### Toolchain'i derle (bir kere)
 ```powershell
 .\build.ps1 -Tool
 ```
 
-### 2) Tek bir .asm dosyasını .mem'e çevir
+### Tek .asm dosyasını derle
 ```powershell
-.\build.ps1 -Asm asm\led.asm
-# -> build\led.mem üretilir
+.\build.ps1 -Asm ..\tests\std_a_gauss_sum.asm
+# Çıktı: build\std_a_gauss_sum.mem
 ```
 
-### 3) Tüm .asm dosyalarını topluca derle
+### Tüm .asm dosyalarını topluca
 ```powershell
 .\build.ps1 -All
-# asm\ ve ..\tests\ altındaki her .asm dosyasını işler
 ```
 
-### 4) build/ klasörünü temizle
+### build/ klasörünü temizle
 ```powershell
 .\build.ps1 -Clean
 ```
 
 ### Özel başlangıç adresleri
 ```powershell
-.\build.ps1 -Asm asm\main.asm -Ttext 0x100 -Tdata 0x2000
+.\build.ps1 -Asm ..\tests\std_d_memory_stress.asm -Ttext 0x20 -Tdata 0x1000
 ```
-
----
 
 ## 🔧 Manuel Komutlar (script'siz)
 
 ```powershell
-# Assembly  ->  Object
-.\toolchain\bin\assembler.exe asm\led.asm build\led.o
+# Assembly → Object
+.\toolchain\bin\assembler.exe ..\tests\std_a_gauss_sum.asm build\std_a.o
 
-# Object  ->  Firmware (.mem)
-.\toolchain\bin\linker.exe -Ttext 0x0 -Tdata 0x1000 -o build\led.mem build\led.o
-
-# Çoklu obje linkleme
-.\toolchain\bin\linker.exe -Ttext 0x0 -Tdata 0x1000 `
-    -o build\firmware.mem build\main.o build\utils.o
+# Object → Firmware
+.\toolchain\bin\linker.exe -Ttext 0x0 -Tdata 0x1000 -o build\std_a.mem build\std_a.o
 ```
 
-### Linker argümanları
-| Argüman | Açıklama | Örnek |
-|---|---|---|
-| `-Ttext 0xADDR` | `.text` segmenti başlangıcı | `0x0` (PicoRV32 boot) |
-| `-Tdata 0xADDR` | `.data` segmenti başlangıcı | `0x1000` |
-| `-o file.mem` | Çıktı dosyası | `firmware.mem` |
-| (pozisyonel) | Bir veya daha fazla `.o` | `main.o utils.o` |
-
----
-
-## 🖥️ Linker GUI
-
+Python fallback (eğer .exe WDAC tarafından engellenirse):
 ```powershell
-python toolchain\gui\arayuz.py
+python toolchain\py\asm.py  ..\tests\std_a_gauss_sum.asm build\std_a.o
+python toolchain\py\link.py -Ttext 0x0 -Tdata 0x1000 -o build\std_a.mem build\std_a.o
 ```
 
-ESTAB (External Symbol Table) ve üretilen firmware'i görsel olarak gösterir.
+## 🎯 Desteklenen RV32I Komutları
 
----
+- **R-type:** add, sub, sll, xor, srl, sra, or, and, slt, sltu
+- **I-type:** addi, xori, ori, andi, slti, slli, srli, srai
+- **Load:** lb, lh, lw, lbu, lhu
+- **Store (S-type):** sb, sh, sw
+- **Branch (B-type):** beq, bne, blt, bge, bltu, bgeu
+- **Jump:** jal, jalr
+- **U-type:** lui, auipc
 
-## 📡 FPGA'e Gönderim (uçtan uca)
+## 📝 Direktifler
 
-```powershell
-# 1. Toolchain hazır
-.\build.ps1 -Tool
+- `.text` / `.data` — segment seçimi
+- `.globl` / `.global` — sembol dışa açma
+- `.extern` — dış sembol
+- `.word VAL` — 32-bit veri
+- `.space N` — N bayt rezerv (sıfırlarla)
 
-# 2. Test programını derle
-.\build.ps1 -Asm ..\tests\test1_led_blink.asm
+## 🔣 Sayı Tabanları
 
-# 3. FPGA'e UART üzerinden yükle
-cd ..
-python host_app\host_loader.py
-#   - Dosya:  sistem_proglamlama_proje_3\build\test1_led_blink.mem
-#   - Port:   COMx
-#   - YÜKLE  ->  XMODEM-CRC ile aktarım, ACK/NAK
+```
+addi a0, zero, 63         # decimal
+addi a0, zero, 0x3F       # hex
+addi a0, zero, 0b111111   # binary
+addi a0, zero, 077        # octal
+addi a0, zero, -1         # signed negative
 ```
 
-Tang Nano 9K'da loading LED'i söner → kullanıcı programı çalışmaya başlar.
+## 🏷️ ABI Register Adları (RISC-V psABI)
 
----
-
-## 📦 Bağımlılıklar
-
-- **GCC** (MinGW / MSYS2)        - C toolchain derleme
-- **Python 3** + `pyserial`       - host loader
-- **GOWIN EDA**                   - FPGA sentez/yükleme
-- **Tang Nano 9K** (GW1NR-LV9)    - hedef donanım
+`zero, ra, sp, gp, tp, t0..t6, s0..s11, fp, a0..a7` + `x0..x31` (mimari).

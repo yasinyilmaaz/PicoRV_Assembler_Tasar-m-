@@ -59,7 +59,6 @@ module top (
     wire [31:0] cpu_mem_rdata;
 
     picorv32 #(
-        .PROGADDR_RESET(32'h0000_0400),   // YENI: kod baslangic adresi 0x100
         .ENABLE_COUNTERS(0),
         .ENABLE_MUL(0),
         .ENABLE_DIV(0),

@@ -44,9 +44,9 @@ typedef struct {
 } ObjectFile;
 
 /* ========================================================
-   ESTAB (External Symbol Table) Veri Yapï¿½sï¿½
-   Linker'ï¿½n Pass 1 aï¿½amasï¿½nda doldurduï¿½u ve tï¿½m modï¿½llerin
-   ortaklaï¿½a kullandï¿½ï¿½ï¿½ Dï¿½ï¿½ Sembol Tablosudur.
+   ESTAB (External Symbol Table) Veri Yapýsý
+   Linker'ýn Pass 1 aþamasýnda doldurduðu ve tüm modüllerin
+   ortaklaþa kullandýðý Dýþ Sembol Tablosudur.
    ======================================================== */
 typedef struct {
     char name[50];
@@ -144,8 +144,8 @@ void read_object_file(char* filename, ObjectFile* obj) {
 }
 
 /* ========================================================
-   PASS 1 ADIMI: Bellek Haritasï¿½ (Memory Map) ï¿½ï¿½karma
-   Nesne dosyalarï¿½nï¿½n bellekte art arda nasï¿½l dizileceï¿½i hesaplanï¿½r.
+   PASS 1 ADIMI: Bellek Haritasý (Memory Map) Çýkarma
+   Nesne dosyalarýnýn bellekte art arda nasýl dizileceði hesaplanýr.
    ======================================================== */
 void assign_base_addresses(uint32_t start_text, uint32_t start_data) {
     uint32_t current_text_base = start_text;
@@ -161,8 +161,8 @@ void assign_base_addresses(uint32_t start_text, uint32_t start_data) {
 }
 
 /* ========================================================
-   PASS 1 ADIMI: ESTAB (External Symbol Table) Oluï¿½turma
-   Pass 1'in asï¿½l amacï¿½dï¿½r. Her modï¿½ldeki GLOBAL semboller alï¿½nï¿½p,
+   PASS 1 ADIMI: ESTAB (External Symbol Table) Oluþturma
+   Pass 1'in asýl amacýdýr. Her modüldeki GLOBAL semboller alýnýp,
    kesin(mutlak) adresleri hesaplanarak ESTAB'a kaydedilir.
    ======================================================== */
 void build_global_symbol_table() {
@@ -178,7 +178,7 @@ void build_global_symbol_table() {
                 s->absolute_address = obj->data_base_address + s->offset;
             }
 
-            // Sadece GLOBAL (dï¿½ï¿½a aï¿½ï¿½k) semboller ESTAB'a eklenir
+            // Sadece GLOBAL (dýþa açýk) semboller ESTAB'a eklenir
             if (strcmp(s->scope, "GLOBAL") == 0) {
                 add_global_symbol(s->name, s->absolute_address);
             }
@@ -187,8 +187,8 @@ void build_global_symbol_table() {
 }
 
 /* ========================================================
-   PASS 2 ADIMI: Bï¿½lï¿½mleri Birleï¿½tirme (Merging)
-   Tï¿½m .o dosyalarï¿½ndaki text ve data bï¿½lï¿½mleri tek bir blok haline getirilir.
+   PASS 2 ADIMI: Bölümleri Birleþtirme (Merging)
+   Tüm .o dosyalarýndaki text ve data bölümleri tek bir blok haline getirilir.
    ======================================================== */
 void merge_sections() {
     final_text_count = 0; final_data_count = 0;
@@ -200,10 +200,10 @@ void merge_sections() {
 }
 
 /* ========================================================
-   PASS 2 ADIMI: Relocation (Adres Dï¿½zeltme)
-   Bu aï¿½amada makine kodu doï¿½rudan deï¿½iï¿½tirilir. .relocs tablosundaki
-   istekler okunur, ESTAB'dan (global_symbols) adresi ï¿½ekilir ve
-   ilgili instruction'ï¿½n iï¿½ine offset olarak gï¿½mï¿½lï¿½r.
+   PASS 2 ADIMI: Relocation (Adres Düzeltme)
+   Bu aþamada makine kodu doðrudan deðiþtirilir. .relocs tablosundaki
+   istekler okunur, ESTAB'dan (global_symbols) adresi çekilir ve
+   ilgili instruction'ýn içine offset olarak gömülür.
    ======================================================== */
 void apply_relocations() {
     for (int i = 0; i < object_count; i++) {
@@ -212,7 +212,7 @@ void apply_relocations() {
         for (int j = 0; j < obj->reloc_count; j++) {
             Reloc* r = &obj->relocs[j];
 
-            // ESTAB ï¿½zerinden sembolï¿½n kesin adresini arï¿½yoruz
+            // ESTAB üzerinden sembolün kesin adresini arýyoruz
             int sym_index = find_global_symbol(r->symbol);
 
             if (sym_index == -1) {
@@ -237,15 +237,12 @@ void write_output_mem(char* filename, uint32_t start_text, uint32_t start_data) 
     FILE* out = fopen(filename, "w");
     if (!out) { printf("HATA: Cikti dosyasi olusturulamadi!\n"); exit(1); }
 
-    // @ADRES tag'i BYTE adresi olarak yazilir (link.py ile tutarli).
-    // Verilog $readmemh icin word-array kullanan donanim, bu adresi
-    // CPU tarafindan gorulen byte adres olarak yorumlar (mem_addr[14:2]).
     if (final_text_count > 0) {
-        fprintf(out, "@%08X\n", start_text);
+        fprintf(out, "@%08X\n", start_text / 4);
         for (int i = 0; i < final_text_count; i++) fprintf(out, "%08X\n", final_text[i]);
     }
     if (final_data_count > 0) {
-        fprintf(out, "@%08X\n", start_data);
+        fprintf(out, "@%08X\n", start_data / 4);
         for (int i = 0; i < final_data_count; i++) fprintf(out, "%08X\n", final_data[i]);
     }
     fclose(out);
@@ -284,25 +281,25 @@ int main(int argc, char* argv[]) {
         return 1;
     }
 
-    // Dosyalarï¿½n okunmasï¿½
+    // Dosyalarýn okunmasý
     for (int i = 0; i < object_count; i++) read_object_file(argv[arg_idx + i], &objects[i]);
 
     // ========================================================
     // --- LINKER PASS 1 ---
-    // Adresleme iï¿½lemleri ve ESTAB tablosunun oluï¿½turulmasï¿½
+    // Adresleme iþlemleri ve ESTAB tablosunun oluþturulmasý
     // ========================================================
     assign_base_addresses(start_text, start_data);
     build_global_symbol_table();
 
     // ========================================================
     // --- LINKER PASS 2 ---
-    // Makine kodlarï¿½nï¿½n birleï¿½tirilmesi ve ESTAB kullanï¿½larak 
-    // bilinmeyen(external) adreslerin(relocations) dï¿½zeltilmesi
+    // Makine kodlarýnýn birleþtirilmesi ve ESTAB kullanýlarak 
+    // bilinmeyen(external) adreslerin(relocations) düzeltilmesi
     // ========================================================
     merge_sections();
     apply_relocations();
 
-    // ï¿½ï¿½ktï¿½ dosyasï¿½nï¿½n yazï¿½lmasï¿½
+    // Çýktý dosyasýnýn yazýlmasý
     write_output_mem(output_name, start_text, start_data);
 
     print_debug_info();
